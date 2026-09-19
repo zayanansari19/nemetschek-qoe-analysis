@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nemetschek SE — QoE Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --navy: #1B2A4A;
+  --dark-blue: #2C3E6B;
+  --med-blue: #4472C4;
+  --light-blue: #D6E4F0;
+  --accent-green: #27AE60;
+  --accent-red: #E74C3C;
+  --accent-orange: #F39C12;
+  --accent-purple: #9B59B6;
+  --bg: #F5F7FA;
+  --card-bg: #FFFFFF;
+  --text: #2C3E50;
+  --text-light: #7F8C8D;
+  --border: #E0E6ED;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+.header {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--dark-blue) 100%);
+  color: white; padding: 32px 24px 24px; text-align: center;
+}
+.header h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.header p { font-size: 14px; opacity: 0.8; }
+
+.nav-tabs {
+  display: flex; gap: 0; background: var(--dark-blue); padding: 0 16px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.nav-tabs button {
+  background: none; border: none; color: rgba(255,255,255,0.7); padding: 12px 20px;
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  border-bottom: 3px solid transparent; transition: all 0.2s;
+}
+.nav-tabs button:hover { color: white; }
+.nav-tabs button.active { color: white; border-bottom-color: var(--accent-green); }
+
+.kpi-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px; padding: 24px; max-width: 1400px; margin: 0 auto;
+}
+.kpi-card {
+  background: var(--card-bg); border-radius: 12px; padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center;
+  border-top: 4px solid var(--med-blue);
+}
+.kpi-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); margin-bottom: 4px; }
+.kpi-card .value { font-size: 28px; font-weight: 700; color: var(--navy); }
+.kpi-card .sub { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+.kpi-card .delta { font-size: 13px; font-weight: 600; margin-top: 4px; }
+.delta.pos { color: var(--accent-green); }
+.delta.neg { color: var(--accent-red); }
+.delta.neu { color: var(--accent-orange); }
+
+.content { max-width: 1400px; margin: 0 auto; padding: 0 24px 40px; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.section-title {
+  font-size: 18px; font-weight: 700; color: var(--navy); margin: 28px 0 16px;
+  padding-bottom: 8px; border-bottom: 2px solid var(--med-blue);
+}
+
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+@media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+
+.chart-card {
+  background: var(--card-bg); border-radius: 12px; padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.chart-card h3 { font-size: 14px; color: var(--navy); margin-bottom: 12px; }
+
+.findings-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.findings-table th {
+  background: var(--navy); color: white; padding: 10px 12px; text-align: left; font-weight: 600;
+}
+.findings-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.findings-table tr:nth-child(even) { background: #F9FAFB; }
+.risk-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px;
+  font-weight: 700; color: white; text-transform: uppercase;
+}
+.risk-high { background: var(--accent-red); }
+.risk-medium { background: var(--accent-orange); }
+.risk-low { background: var(--accent-green); }
+
+.traffic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.traffic-item {
+  display: flex; align-items: center; gap: 12px; background: var(--card-bg);
+  border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.traffic-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+.traffic-dot.green { background: var(--accent-green); }
+.traffic-dot.amber { background: var(--accent-orange); }
+.traffic-dot.red { background: var(--accent-red); }
+.traffic-info .ti-label { font-size: 13px; font-weight: 600; }
+.traffic-info .ti-detail { font-size: 11px; color: var(--text-light); }
+
+.methodology { background: var(--card-bg); border-radius: 12px; padding: 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 14px; line-height: 1.7; }
+.methodology h3 { color: var(--navy); margin: 20px 0 8px; font-size: 16px; }
+.methodology h3:first-child { margin-top: 0; }
+.methodology p { margin-bottom: 12px; }
+.methodology ul { margin: 0 0 12px 20px; }
+.methodology li { margin-bottom: 4px; }
+
+.footer { text-align: center; padding: 24px; font-size: 11px; color: var(--text-light); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>NEMETSCHEK SE — Quality of Earnings Dashboard</h1>
+  <p>FY2020 – FY2024 &nbsp;|&nbsp; Commercial Due Diligence Analysis &nbsp;|&nbsp; Prepared by Zayan Ansari</p>
+</div>
+
+<div class="nav-tabs" id="navTabs">
+  <button class="active" data-tab="overview">Overview</button>
+  <button data-tab="revenue">Revenue Analysis</button>
+  <button data-tab="recurring">Recurring Revenue</button>
+  <button data-tab="segments">Segment Deep Dive</button>
+  <button data-tab="quality">Quality Metrics</button>
+  <button data-tab="findings">Findings</button>
+  <button data-tab="methodology">Methodology</button>
+</div>
+
+<!-- KPI Strip -->
+<div class="kpi-strip">
+  <div class="kpi-card"><div class="label">FY2024 Revenue</div><div class="value">€996M</div><div class="delta pos">+16.9% YoY</div></div>
+  <div class="kpi-card" style="border-top-color:var(--accent-green)"><div class="label">Recurring Revenue %</div><div class="value">86.5%</div><div class="delta pos">↑ from 60.2% (FY20)</div></div>
+  <div class="kpi-card"><div class="label">ARR</div><div class="value">€1,020M</div><div class="delta pos">+41.9% YoY</div></div>
+  <div class="kpi-card"><div class="label">EBITDA Margin</div><div class="value">30.2%</div><div class="delta neu">Stable</div></div>
+  <div class="kpi-card" style="border-top-color:var(--accent-green)"><div class="label">FCF pre-M&A</div><div class="value">€294M</div><div class="delta pos">+22.0% YoY</div></div>
+  <div class="kpi-card" style="border-top-color:var(--accent-orange)"><div class="label">DSO</div><div class="value">54.0d</div><div class="delta neg">↑ from 42.7d</div></div>
+  <div class="kpi-card"><div class="label">5Y Rev CAGR</div><div class="value">13.6%</div><div class="sub">FY20→FY24</div></div>
+</div>
+
+<div class="content">
+
+<!-- OVERVIEW TAB -->
+<div class="tab-content active" id="tab-overview">
+  <h2 class="section-title">Traffic Light Assessment</h2>
+  <div class="traffic-grid">
+    <div class="traffic-item"><div class="traffic-dot green"></div><div class="traffic-info"><div class="ti-label">Revenue Quality — STRONG</div><div class="ti-detail">86.5% recurring, Sub/SaaS CAGR 58.6%</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot green"></div><div class="traffic-info"><div class="ti-label">Growth Sustainability — STRONG</div><div class="ti-detail">13.6% rev CAGR, organic 13.7% in FY24</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot green"></div><div class="traffic-info"><div class="ti-label">Subscription Transition — ON TRACK</div><div class="ti-detail">Sub/SaaS 57% of rev (up from 15.1%)</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot amber"></div><div class="traffic-info"><div class="ti-label">Profitability — STABLE</div><div class="ti-detail">EBITDA 30.2% — GoCanvas dilutive</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot green"></div><div class="traffic-info"><div class="ti-label">Cash Generation — STRONG</div><div class="ti-detail">OCF/NI 172%, FCF pre-M&A €294M</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot amber"></div><div class="traffic-info"><div class="ti-label">M&A Integration — WATCH</div><div class="ti-detail">GoCanvas €665M — high goodwill, low margins</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot amber"></div><div class="traffic-info"><div class="ti-label">Balance Sheet — CHANGED</div><div class="ti-detail">Net debt post-GoCanvas; equity ratio 44%</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot amber"></div><div class="traffic-info"><div class="ti-label">Working Capital — MONITOR</div><div class="ti-detail">DSO 42.7→54.0 days; receivables +48%</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot green"></div><div class="traffic-info"><div class="ti-label">Geographic Diversification — IMPROVING</div><div class="ti-detail">Americas 40.4% (up from 30.5%)</div></div></div>
+    <div class="traffic-item"><div class="traffic-dot green"></div><div class="traffic-info"><div class="ti-label">Customer Concentration — LOW RISK</div><div class="ti-detail">Broad client base, no single customer >5%</div></div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card"><h3>Revenue & EBITDA (5-Year Trend)</h3><canvas id="chartOverviewRevEbitda"></canvas></div>
+    <div class="chart-card"><h3>Revenue Mix Evolution</h3><canvas id="chartOverviewMix"></canvas></div>
+  </div>
+</div>
+
+<!-- REVENUE TAB -->
+<div class="tab-content" id="tab-revenue">
+  <h2 class="section-title">Revenue Bridge & Growth Decomposition</h2>
+  <div class="chart-grid">
+    <div class="chart-card"><h3>Revenue by Type — Stacked (€m)</h3><canvas id="chartRevType"></canvas></div>
+    <div class="chart-card"><h3>Revenue by Region — FY2024</h3><canvas id="chartRevRegion"></canvas></div>
+    <div class="chart-card"><h3>YoY Revenue Growth (%)</h3><canvas id="chartRevGrowth"></canvas></div>
+    <div class="chart-card"><h3>Revenue by Region — Trend</h3><canvas id="chartRevRegionTrend"></canvas></div>
+  </div>
+  <h2 class="section-title">Organic vs Inorganic Growth (FY2024)</h2>
+  <div class="chart-grid">
+    <div class="chart-card" style="grid-column: span 2;">
+      <h3>FY2024 Growth Decomposition</h3>
+      <canvas id="chartOrganic" height="100"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- RECURRING TAB -->
+<div class="tab-content" id="tab-recurring">
+  <h2 class="section-title">Subscription Transition Analysis</h2>
+  <div class="chart-grid">
+    <div class="chart-card"><h3>Subscription/SaaS vs Maintenance vs Licenses (€m)</h3><canvas id="chartSubTrans"></canvas></div>
+    <div class="chart-card"><h3>Recurring Revenue % of Total</h3><canvas id="chartRecPct"></canvas></div>
+    <div class="chart-card"><h3>ARR Trajectory (€m)</h3><canvas id="chartARR"></canvas></div>
+    <div class="chart-card"><h3>Deferred Revenue (€m) — Forward Visibility</h3><canvas id="chartDefRev"></canvas></div>
+  </div>
+</div>
+
+<!-- SEGMENTS TAB -->
+<div class="tab-content" id="tab-segments">
+  <h2 class="section-title">Segment Revenue & Profitability</h2>
+  <div class="chart-grid">
+    <div class="chart-card"><h3>Segment Revenue — FY2024</h3><canvas id="chartSegPie"></canvas></div>
+    <div class="chart-card"><h3>Segment EBITDA Margin: FY23 vs FY24</h3><canvas id="chartSegMargin"></canvas></div>
+    <div class="chart-card"><h3>Segment Revenue Trend (€m)</h3><canvas id="chartSegTrend"></canvas></div>
+    <div class="chart-card"><h3>Cost Structure — FY2024</h3><canvas id="chartCost"></canvas></div>
+  </div>
+</div>
+
+<!-- QUALITY TAB -->
+<div class="tab-content" id="tab-quality">
+  <h2 class="section-title">Cash Conversion & Balance Sheet</h2>
+  <div class="chart-grid">
+    <div class="chart-card"><h3>Profitability Margins — 5-Year Trend</h3><canvas id="chartMargins"></canvas></div>
+    <div class="chart-card"><h3>Cash Conversion (OCF / Net Income)</h3><canvas id="chartCashConv"></canvas></div>
+    <div class="chart-card"><h3>Balance Sheet: Cash vs Debt (€m)</h3><canvas id="chartBS"></canvas></div>
+    <div class="chart-card"><h3>DSO Trend (Days)</h3><canvas id="chartDSO"></canvas></div>
+  </div>
+</div>
+
+<!-- FINDINGS TAB -->
+<div class="tab-content" id="tab-findings">
+  <h2 class="section-title">QoE Findings — Big 4 TS Format</h2>
+  <table class="findings-table">
+    <thead><tr><th>#</th><th>Category</th><th>Observation</th><th>Implication</th><th>Risk</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Revenue Quality</td><td>Recurring revenue 86.5% of total; Sub/SaaS CAGR 58.6%</td><td>Highly predictable, contracted revenue base supports premium valuation</td><td><span class="risk-badge risk-low">LOW</span></td></tr>
+      <tr><td>2</td><td>ARR Momentum</td><td>ARR €1,020M (+41.9%), organic +34.6%. ARR/Rev 1.02x</td><td>Embedded forward growth; run-rate exceeds recognized revenue</td><td><span class="risk-badge risk-low">LOW</span></td></tr>
+      <tr><td>3</td><td>GoCanvas Acquisition</td><td>€665M acquisition, 80% goodwill. H2 EBITDA margin 20% (pro-forma 4.5%)</td><td>Integration execution risk; €500M new debt; material balance sheet change</td><td><span class="risk-badge risk-high">HIGH</span></td></tr>
+      <tr><td>4</td><td>Balance Sheet Leverage</td><td>LT borrowings €0.1M→€500M; equity ratio 61%→44%; net debt ~€295M</td><td>Reduced financial flexibility; increased interest rate exposure</td><td><span class="risk-badge risk-medium">MEDIUM</span></td></tr>
+      <tr><td>5</td><td>DSO Deterioration</td><td>Trade receivables +48% vs revenue +16.9%; DSO 42.7→54.0 days</td><td>May signal collection challenges or GoCanvas integration effect</td><td><span class="risk-badge risk-medium">MEDIUM</span></td></tr>
+      <tr><td>6</td><td>Sub Transition</td><td>License revenue €235M→€101M; maintenance €293M still 34% of recurring</td><td>Transition well advanced; maintenance-to-subscription next phase</td><td><span class="risk-badge risk-low">LOW</span></td></tr>
+      <tr><td>7</td><td>Profitability</td><td>EBITDA margin 28.9-32.6% through transition; organic 31.1% FY24</td><td>Strong pricing power and operational discipline despite model shift</td><td><span class="risk-badge risk-low">LOW</span></td></tr>
+      <tr><td>8</td><td>Manage Segment</td><td>Revenue -1.1%; EBITDA margin 10.2% (up from 3.6%)</td><td>Weakest segment; margin improving but growth stagnant</td><td><span class="risk-badge risk-medium">MEDIUM</span></td></tr>
+      <tr><td>9</td><td>Geographic Mix</td><td>Americas 30.5%→40.4%; Germany 24.3%→18.4%</td><td>Access to largest AEC market; reduces European macro concentration</td><td><span class="risk-badge risk-low">LOW</span></td></tr>
+      <tr><td>10</td><td>Customer Conc.</td><td>No single customer >5%; broad AEC client structure</td><td>Low key-client risk; resilient through cycles</td><td><span class="risk-badge risk-low">LOW</span></td></tr>
+    </tbody>
+  </table>
+  <div style="margin-top:24px; padding:20px; background:var(--card-bg); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+    <h3 style="color:var(--navy); margin-bottom:12px;">Risk Summary</h3>
+    <p><span class="risk-badge risk-high">HIGH</span> <strong>1 finding</strong> — GoCanvas integration & leverage</p>
+    <p style="margin-top:8px;"><span class="risk-badge risk-medium">MEDIUM</span> <strong>3 findings</strong> — Balance sheet, DSO, Manage segment</p>
+    <p style="margin-top:8px;"><span class="risk-badge risk-low">LOW</span> <strong>6 findings</strong> — Revenue quality, ARR, transition, profitability, geo mix, customer conc.</p>
+    <p style="margin-top:16px; font-weight:600; color:var(--navy);">Overall: FAVORABLE with CAVEATS — Strong recurring revenue quality offset by GoCanvas integration risk.</p>
+  </div>
+</div>
+
+<!-- METHODOLOGY TAB -->
+<div class="tab-content" id="tab-methodology">
+  <h2 class="section-title">Analysis Methodology</h2>
+  <div class="methodology">
+    <h3>1. Framework</h3>
+    <p>This analysis follows a Big 4 Transaction Services Quality of Earnings (QoE) framework adapted for a software/SaaS company undergoing a subscription transition. The methodology evaluates the sustainability, predictability, and quality of Nemetschek's earnings through ten analytical dimensions.</p>
+
+    <h3>2. Data Sources</h3>
+    <ul>
+      <li><strong>Primary:</strong> Nemetschek SE Annual Report 2024 (consolidated financial statements, notes, management report)</li>
+      <li><strong>Cross-reference:</strong> Annual Reports 2020-2023 for historical data and trend verification</li>
+      <li><strong>Supplementary:</strong> H1 2025 Report for forward indicators; Company Presentation 2024 for strategic context</li>
+      <li>All data is publicly available and sourced from official Nemetschek SE publications</li>
+    </ul>
+
+    <h3>3. Revenue Quality Assessment</h3>
+    <p>Revenue is decomposed into four streams: Subscription/SaaS, Maintenance, Perpetual Software Licenses, and Consulting & Hardware. The key quality metric is the share and growth trajectory of recurring revenue (Subscription + Maintenance), which provides contracted, predictable cash flows. The subscription transition is tracked through the Sub/SaaS-to-Recurring ratio and the decline rate of perpetual licenses.</p>
+
+    <h3>4. ARR Analysis</h3>
+    <p>Annual Recurring Revenue (ARR) is the annualized run-rate of subscription and maintenance contracts at period end. An ARR/Revenue ratio above 1.0x indicates embedded forward growth (new contracts signed during the year contribute run-rate beyond what was recognized). Organic ARR growth (excluding acquisitions) isolates the underlying business momentum from M&A-driven expansion.</p>
+
+    <h3>5. Organic vs Inorganic Growth</h3>
+    <p>Revenue growth is decomposed into organic (same-perimeter, constant currency) and inorganic (M&A contribution). For FY2024, GoCanvas (acquired July 1, 2024) contributed €27.5M in 6 months of post-acquisition revenue. Currency-adjusted figures normalize for EUR/USD fluctuations that affect reported growth given significant Americas exposure (~40% of revenue).</p>
+
+    <h3>6. Segment Profitability</h3>
+    <p>Each of the four segments (Design, Build, Manage, Media) is analyzed for revenue contribution, growth rate, EBITDA margin, and margin trend. This identifies which segments drive group performance and which carry risk. The Build segment's margin decline is directly attributable to GoCanvas integration, while Design's margin expansion reflects operating leverage from the subscription transition.</p>
+
+    <h3>7. Cash Conversion</h3>
+    <p>Two cash conversion metrics are tracked: Operating Cash Flow / Net Income (measures quality of accrual earnings) and Free Cash Flow before M&A / Net Income (measures underlying cash generation capacity). A ratio consistently above 100% indicates earnings are backed by cash — a hallmark of high-quality software businesses with upfront annual billing and low working capital needs.</p>
+
+    <h3>8. Working Capital & DSO</h3>
+    <p>Days Sales Outstanding (DSO = Trade Receivables / Revenue × 365) tracks collection efficiency. The 11.3-day increase in FY24 is flagged as it outpaces revenue growth, potentially indicating extended payment terms or GoCanvas receivables integration. Deferred revenue (contract liabilities) is analyzed as a forward visibility indicator — growing deferred revenue signals increasing pre-paid commitments.</p>
+
+    <h3>9. Balance Sheet Assessment</h3>
+    <p>The GoCanvas acquisition fundamentally changed Nemetschek's balance sheet: from net cash (€268M cash, ~€0 debt) to net debt (~€295M). Goodwill increased from €552M to €1,135M, representing 53% of total assets. The equity ratio dropped from 61% to 44%. These changes are assessed for impact on financial flexibility and future M&A capacity.</p>
+
+    <h3>10. Risk Rating Methodology</h3>
+    <ul>
+      <li><strong>LOW:</strong> Metric supports the investment thesis; no material concern. Typical for strong recurring revenue, good cash conversion, geographic diversification.</li>
+      <li><strong>MEDIUM:</strong> Metric requires monitoring; potential for deterioration. Applied to balance sheet leverage, DSO trend, and weaker segments.</li>
+      <li><strong>HIGH:</strong> Metric represents material risk to the thesis. Reserved for the GoCanvas integration given the size of the acquisition, high goodwill, and low initial margins.</li>
+    </ul>
+
+    <h3>11. Limitations</h3>
+    <ul>
+      <li>Analysis based solely on publicly available annual report data — no access to management or internal metrics</li>
+      <li>FY2020-2022 segment data in absolute EUR is estimated from reported percentage splits where note-level data was not available</li>
+      <li>Net revenue retention, customer-level churn, and contract duration data are not publicly disclosed</li>
+      <li>GoCanvas integration is assessed on only 6 months of post-acquisition data</li>
+      <li>Currency-adjusted figures use company-reported constant-currency growth rates, not independently calculated rates</li>
+    </ul>
+
+    <h3>12. Tools & Skills Demonstrated</h3>
+    <ul>
+      <li>Financial data extraction from annual reports (PDF parsing)</li>
+      <li>Excel workbook construction with openpyxl (8 tabs, charts, conditional formatting)</li>
+      <li>Quality of Earnings analysis framework (Big 4 TS methodology)</li>
+      <li>Revenue decomposition and subscription transition analysis</li>
+      <li>Segment-level profitability analysis</li>
+      <li>Interactive data visualization (Chart.js, HTML/CSS/JS)</li>
+      <li>M&A impact assessment and purchase price allocation analysis</li>
+    </ul>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<div class="footer">
+  Nemetschek SE QoE Dashboard &nbsp;|&nbsp; Data from Nemetschek Annual Reports 2020-2024 &nbsp;|&nbsp; Prepared by Zayan Ansari &nbsp;|&nbsp; For Portfolio / Interview Purposes
+</div>
+
+<script>
+// ===== TAB NAVIGATION =====
+document.querySelectorAll('.nav-tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ===== DATA =====
+const years = ['FY20','FY21','FY22','FY23','FY24'];
+const revenue = [596.9, 681.5, 801.8, 851.6, 995.6];
+const subSaas = [90.4, 132.0, 204.2, 301.8, 567.8];
+const maintenance = [268.6, 284.7, 328.4, 350.9, 293.4];
+const licenses = [210.0, 234.8, 235.0, 161.1, 100.7];
+const consulting = [27.9, 30.0, 34.2, 37.8, 33.7];
+const ebitda = [172.3, 222.0, 257.0, 257.7, 301.0];
+const ebitdaMargin = [28.9, 32.6, 32.0, 30.3, 30.2];
+const ebitMargin = [20.5, 25.2, 24.7, 23.4, 23.5];
+const niMargin = [16.2, 19.7, 20.2, 19.2, 18.0];
+const netIncome = [96.9, 134.6, 161.9, 163.9, 178.8];
+const cfOps = [157.5, 214.4, 213.8, 252.9, 306.8];
+const cashConv = [162.5, 159.3, 132.1, 154.3, 171.6];
+const arr = [null, 456.5, 581.7, 718.6, 1019.9];
+const defRev = [null, null, null, 271.2, 385.8];
+const dso = [null, null, null, 42.7, 54.0];
+const segDesign = [307.4, 354.4, 392.9, 432.0, 487.6];
+const segBuild = [191.0, 218.1, 264.6, 265.4, 340.7];
+const segManage = [32.8, 40.9, 48.1, 50.4, 49.9];
+const segMedia = [65.7, 68.2, 104.2, 111.4, 117.4];
+
+const blue = '#4472C4', green = '#27AE60', orange = '#F39C12', purple = '#9B59B6', gray = '#A5A5A5', red = '#E74C3C', navy = '#1B2A4A';
+
+// Chart defaults
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.size = 12;
+
+// ===== OVERVIEW CHARTS =====
+new Chart(document.getElementById('chartOverviewRevEbitda'), {
+  type: 'bar',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'Revenue (€m)', data: revenue, backgroundColor: blue+'CC', order: 2 },
+      { label: 'EBITDA (€m)', data: ebitda, backgroundColor: green+'CC', order: 2 },
+      { label: 'EBITDA Margin %', data: ebitdaMargin, type: 'line', borderColor: orange, backgroundColor: 'transparent', yAxisID: 'y1', pointRadius: 5, borderWidth: 2, order: 1 }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: { y: { beginAtZero: true, title: { display: true, text: '€m' }}, y1: { position: 'right', min: 0, max: 40, title: { display: true, text: '%' }, grid: { drawOnChartArea: false }}}
+  }
+});
+
+new Chart(document.getElementById('chartOverviewMix'), {
+  type: 'bar',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'Sub/SaaS', data: subSaas, backgroundColor: blue },
+      { label: 'Maintenance', data: maintenance, backgroundColor: green },
+      { label: 'Licenses', data: licenses, backgroundColor: orange },
+      { label: 'Consulting & HW', data: consulting, backgroundColor: gray }
+    ]
+  },
+  options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: '€m' }}}}
+});
+
+// ===== REVENUE CHARTS =====
+new Chart(document.getElementById('chartRevType'), {
+  type: 'bar',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'Sub/SaaS', data: subSaas, backgroundColor: blue },
+      { label: 'Maintenance', data: maintenance, backgroundColor: green },
+      { label: 'Licenses', data: licenses, backgroundColor: orange },
+      { label: 'Consulting & HW', data: consulting, backgroundColor: gray }
+    ]
+  },
+  options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: '€m' }}}}
+});
+
+new Chart(document.getElementById('chartRevRegion'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Germany (18.4%)', 'Europe ex-DE (31.0%)', 'Americas (40.4%)', 'Asia/Pacific (9.7%)', 'RoW (0.5%)'],
+    datasets: [{ data: [183.0, 309.0, 402.2, 96.8, 4.5], backgroundColor: [navy, blue, green, orange, gray] }]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'right' }}}
+});
+
+new Chart(document.getElementById('chartRevGrowth'), {
+  type: 'bar',
+  data: {
+    labels: ['FY21','FY22','FY23','FY24'],
+    datasets: [
+      { label: 'Total Revenue', data: [14.2, 17.6, 6.2, 16.9], backgroundColor: blue },
+      { label: 'Sub/SaaS', data: [46.0, 54.7, 47.8, 88.1], backgroundColor: green },
+      { label: 'Licenses', data: [11.8, 0.1, -31.4, -37.5], backgroundColor: orange }
+    ]
+  },
+  options: { responsive: true, scales: { y: { title: { display: true, text: 'Growth %' }}}}
+});
+
+new Chart(document.getElementById('chartRevRegionTrend'), {
+  type: 'bar',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'Germany', data: [145.0, 163.6, 168.4, 178.0, 183.0], backgroundColor: navy },
+      { label: 'Europe ex-DE', data: [191.0, 218.1, 248.6, 269.5, 309.0], backgroundColor: blue },
+      { label: 'Americas', data: [182.1, 231.7, 312.7, 324.9, 402.2], backgroundColor: green },
+      { label: 'Asia/Pac', data: [59.7, 68.2, 80.2, 75.7, 96.8], backgroundColor: orange }
+    ]
+  },
+  options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: '€m' }}}}
+});
+
+new Chart(document.getElementById('chartOrganic'), {
+  type: 'bar',
+  data: {
+    labels: ['Revenue', 'ARR', 'Sub/SaaS', 'Recurring Rev'],
+    datasets: [
+      { label: 'Organic Growth', data: [14.0, 34.2, 79.6, 28.1], backgroundColor: blue },
+      { label: 'M&A Contribution', data: [3.2, 7.4, 8.7, 4.0], backgroundColor: orange }
+    ]
+  },
+  options: { responsive: true, indexAxis: 'y', scales: { x: { stacked: true, title: { display: true, text: 'Growth % (currency-adjusted)' }}, y: { stacked: true }}}
+});
+
+// ===== RECURRING CHARTS =====
+new Chart(document.getElementById('chartSubTrans'), {
+  type: 'line',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'Sub/SaaS', data: subSaas, borderColor: blue, backgroundColor: blue+'33', fill: true, tension: 0.3 },
+      { label: 'Maintenance', data: maintenance, borderColor: green, backgroundColor: green+'33', fill: true, tension: 0.3 },
+      { label: 'Licenses', data: licenses, borderColor: orange, backgroundColor: orange+'33', fill: true, tension: 0.3 }
+    ]
+  },
+  options: { responsive: true, scales: { y: { title: { display: true, text: '€m' }}}}
+});
+
+new Chart(document.getElementById('chartRecPct'), {
+  type: 'line',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'Recurring %', data: [60.2, 61.1, 66.4, 76.6, 86.5], borderColor: blue, borderWidth: 3, pointRadius: 5, tension: 0.3 },
+      { label: 'Sub/SaaS %', data: [15.1, 19.4, 25.5, 35.4, 57.0], borderColor: green, borderWidth: 3, pointRadius: 5, tension: 0.3 },
+      { label: 'License %', data: [35.2, 34.5, 29.3, 18.9, 10.1], borderColor: orange, borderWidth: 3, pointRadius: 5, tension: 0.3 }
+    ]
+  },
+  options: { responsive: true, scales: { y: { title: { display: true, text: '% of Revenue' }, min: 0, max: 100 }}}
+});
+
+new Chart(document.getElementById('chartARR'), {
+  type: 'line',
+  data: {
+    labels: ['FY21','FY22','FY23','FY24'],
+    datasets: [{ label: 'ARR (€m)', data: [456.5, 581.7, 718.6, 1019.9], borderColor: blue, backgroundColor: blue+'22', fill: true, borderWidth: 3, pointRadius: 6, tension: 0.3 }]
+  },
+  options: { responsive: true, scales: { y: { beginAtZero: false, title: { display: true, text: '€m' }}}}
+});
+
+new Chart(document.getElementById('chartDefRev'), {
+  type: 'bar',
+  data: {
+    labels: ['FY23','FY24'],
+    datasets: [
+      { label: 'Short-term', data: [265.1, 354.6], backgroundColor: blue },
+      { label: 'Long-term', data: [6.2, 31.2], backgroundColor: navy }
+    ]
+  },
+  options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: '€m' }}}}
+});
+
+// ===== SEGMENT CHARTS =====
+new Chart(document.getElementById('chartSegPie'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Design (49.0%)', 'Build (34.2%)', 'Manage (5.0%)', 'Media (11.8%)'],
+    datasets: [{ data: [487.6, 340.7, 49.9, 117.4], backgroundColor: [blue, green, orange, purple] }]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'right' }}}
+});
+
+new Chart(document.getElementById('chartSegMargin'), {
+  type: 'bar',
+  data: {
+    labels: ['Design', 'Build', 'Manage', 'Media', 'Group'],
+    datasets: [
+      { label: 'FY2023', data: [27.7, 35.1, 3.6, 38.7, 30.3], backgroundColor: gray },
+      { label: 'FY2024', data: [29.7, 31.8, 10.2, 36.5, 30.2], backgroundColor: blue }
+    ]
+  },
+  options: { responsive: true, scales: { y: { title: { display: true, text: 'EBITDA Margin %' }, min: 0, max: 45 }}}
+});
+
+new Chart(document.getElementById('chartSegTrend'), {
+  type: 'line',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'Design', data: segDesign, borderColor: blue, borderWidth: 2, pointRadius: 4, tension: 0.3 },
+      { label: 'Build', data: segBuild, borderColor: green, borderWidth: 2, pointRadius: 4, tension: 0.3 },
+      { label: 'Manage', data: segManage, borderColor: orange, borderWidth: 2, pointRadius: 4, tension: 0.3 },
+      { label: 'Media', data: segMedia, borderColor: purple, borderWidth: 2, pointRadius: 4, tension: 0.3 }
+    ]
+  },
+  options: { responsive: true, scales: { y: { title: { display: true, text: '€m' }}}}
+});
+
+new Chart(document.getElementById('chartCost'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Personnel (52.5%)', 'Other OpEx (33.6%)', 'D&A (8.6%)', 'COGS (5.2%)'],
+    datasets: [{ data: [406.1, 259.8, 66.8, 40.5], backgroundColor: [blue, orange, gray, red] }]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'right' }}}
+});
+
+// ===== QUALITY CHARTS =====
+new Chart(document.getElementById('chartMargins'), {
+  type: 'line',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'EBITDA Margin', data: ebitdaMargin, borderColor: blue, borderWidth: 3, pointRadius: 5, tension: 0.3 },
+      { label: 'EBIT Margin', data: ebitMargin, borderColor: green, borderWidth: 3, pointRadius: 5, tension: 0.3 },
+      { label: 'Net Income Margin', data: niMargin, borderColor: orange, borderWidth: 3, pointRadius: 5, tension: 0.3 }
+    ]
+  },
+  options: { responsive: true, scales: { y: { title: { display: true, text: 'Margin %' }, min: 0, max: 40 }}}
+});
+
+new Chart(document.getElementById('chartCashConv'), {
+  type: 'bar',
+  data: {
+    labels: years,
+    datasets: [
+      { label: 'CF from Ops (€m)', data: cfOps, backgroundColor: blue+'CC' },
+      { label: 'Net Income (€m)', data: netIncome, backgroundColor: green+'CC' },
+      { label: 'Cash Conversion %', data: cashConv, type: 'line', borderColor: orange, yAxisID: 'y1', pointRadius: 5, borderWidth: 2 }
+    ]
+  },
+  options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: '€m' }}, y1: { position: 'right', min: 100, max: 200, title: { display: true, text: '%' }, grid: { drawOnChartArea: false }}}}
+});
+
+new Chart(document.getElementById('chartBS'), {
+  type: 'bar',
+  data: {
+    labels: ['FY23','FY24'],
+    datasets: [
+      { label: 'Cash', data: [268.0, 205.7], backgroundColor: green },
+      { label: 'LT Borrowings', data: [0.1, 500.3], backgroundColor: red }
+    ]
+  },
+  options: { responsive: true, scales: { y: { title: { display: true, text: '€m' }}}}
+});
+
+new Chart(document.getElementById('chartDSO'), {
+  type: 'bar',
+  data: {
+    labels: ['FY23','FY24'],
+    datasets: [{ label: 'DSO (Days)', data: [42.7, 54.0], backgroundColor: [blue, orange] }]
+  },
+  options: { responsive: true, scales: { y: { title: { display: true, text: 'Days' }, min: 0, max: 70 }}, plugins: { legend: { display: false }}}
+});
+</script>
+</body>
+</html>
